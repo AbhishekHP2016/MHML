@@ -94,7 +94,8 @@ class FactorMachine(Model):
         total = 0.
         total += sum(w1[idx]*val for idx, val in x) if w1 else 0.
         for (idx1, val1), (idx2, val2) in combinations(x, 2):
-            total += np.inner(w2[idx1], w2[idx2]) * val1 * val2
+            key1, key2 = self.idxtokey(idx1, idx2)
+            total += np.inner(w2[key1], w2[key2]) * val1 * val2
 
         return total
 
@@ -121,16 +122,17 @@ class FactorMachine(Model):
         g2 = defaultdict(lambda: np.zeros((K,)))
 
         for (idx1, val1), (idx2, val2) in combinations(x, 2):
-            key1, key2 = idxtokey()
+            key1, key2 = self.idxtokey()
             g2[key1] += val1 * val2 * w2[key2]
             g2[key2] += val1 * val2 * w2[key1]
 
         return g1, g2
 
-    def idxtokey(idx1,idx2):
-        return idx1,idx2
+    def idxtokey(idx1, idx2):
+        return idx1, idx2
 
-class FieldFactorMachine(Model):
+
+class FieldFactorMachine(FactorMachine):
 
     '''This class implements something called FFM.
 
@@ -146,60 +148,6 @@ class FieldFactorMachine(Model):
         self.D = param.D
         self.w1 = defaultdict(int) if param.linear else None
         self.w2 = defaultdict(lambda: np.random.normal(scale=0.05, size=(K,)))
-
-    def predict(self, inst):
-
-        w1 = self.w1
-        w2 = self.w2
-
-        x = inst.x
-
-        total = 0
-        if w1:
-            for idx, val in x:
-                total += w1[idx]*val
-
-        for x1, x2 in combinations(x, 2):
-            idx1, val1 = x1
-            idx2, val2 = x2
-            key1, key2 = self.idxtokey(idx1, idx2)
-            total += np.inner(w2[key1], w2[key2]) * val1 * val2
-
-        return total
-
-    def cost(self, inst):
-        return (inst.y - self.predict(inst))**2
-
-    def gradient(self, inst):
-        g1, g2 = self.dzdw(inst)
-        diff = self.predict(inst.x) - self.y
-
-        g1 = [(idx, val*diff) for idx, val in g1] if g1 else None
-
-        for v in g2.values():
-            v *= diff
-
-        return g1, g2
-
-    def dzdw(self, inst):
-        x = inst.x
-
-        K = self.K
-        w1 = self.w1
-        w2 = self.w2
-
-        g2 = defaultdict(lambda: [0.] * K)
-        for (), x2 in combinations(x, 2):
-            idx1, val1 = x1
-            idx2, val2 = x2
-            key1, key2 = self.idxtokey(idx1, idx2)
-            for k in xrange(K):
-                g2[key1][k] += val1*val2*w2[key2][k]
-                g2[key2][k] += val1*val2*w2[key1][k]
-
-        g1 = [(idx, val) for idx, val in x] if w1 else None
-
-        return g1, g2
 
     def idxtokey(self, idx1, idx2):
         D = self.D
