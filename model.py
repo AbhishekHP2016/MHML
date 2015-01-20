@@ -1,7 +1,7 @@
 # coding: utf-8
-'''
-This file implements the some machine learning models
-'''
+
+'''This file implements the some machine learning models'''
+
 from abc import ABCMeta, abstractmethod
 from mmh3 import hash
 from collections import defaultdict, namedtuple
@@ -41,7 +41,7 @@ class Model(object):
 
 class LogisticRegression(Model):
 
-    ''' This class implements the logistic regression. '''
+    '''This class implements the logistic regression. '''
 
     def __init__(self):
         self.w = defaultdict(int)
@@ -69,7 +69,7 @@ class LogisticRegression(Model):
 
 class FactorMachine(Model):
 
-    ''' This class implements the factor machine
+    '''This class implements the factor machine
 
     Argument:
         D: the dimension of feature space
@@ -90,17 +90,10 @@ class FactorMachine(Model):
         w2 = self.w2
         w1 = self.w1
 
-        # total = sum(i) wi + sum(i,j) fiTfj * vi * vj
+        # total = (sum(i) wi) * (linearEnabled) + sum(i,j) fiTfj * vi * vj
         total = 0.
-
-        # linear term is enabled
-        if w1:
-            for idx, val in x:
-                total += w1[idx]*val
-
-        for x1, x2 in combinations(x, 2):
-            idx1, val1 = x1
-            idx2, val2 = x2
+        total += sum(w1[idx]*val for idx, val in x) if w1 else 0.
+        for (idx1, val1), (idx2, val2) in combinations(x, 2):
             total += np.inner(w2[idx1], w2[idx2]) * val1 * val2
 
         return total
@@ -112,11 +105,7 @@ class FactorMachine(Model):
         g1, g2 = self.dzdw(inst)
         diff = self.predict(inst.x) - inst.y
 
-        if g1:
-            for i in xrange(len(g1)):
-                idx, val = g1[i]
-                g1[i] = idx, val*diff
-
+        g1 = [(idx, val*diff) for idx, val in g1] if g1 else None
         for v in g2.values():
             v *= diff
 
@@ -128,22 +117,22 @@ class FactorMachine(Model):
         w1 = self.w1
         w2 = self.w2
 
+        g1 = [(idx, val) for idx, val in x] if w1 else None
         g2 = defaultdict(lambda: np.zeros((K,)))
 
-        for x1, x2 in combinations(x, 2):
-            idx1, val1 = x1
-            idx2, val2 = x2
-            g2[idx1] += val1 * val2 * w2[idx2]
-            g2[idx2] += val1 * val2 * w2[idx1]
-
-        g1 = [(idx, val) for idx, val in x] if w1 else None
+        for (idx1, val1), (idx2, val2) in combinations(x, 2):
+            key1, key2 = idxtokey()
+            g2[key1] += val1 * val2 * w2[key2]
+            g2[key2] += val1 * val2 * w2[key1]
 
         return g1, g2
 
+    def idxtokey(idx1,idx2):
+        return idx1,idx2
 
 class FieldFactorMachine(Model):
 
-    ''' This class implements something called FFM.
+    '''This class implements something called FFM.
 
     In FFM, we model the pairwise interaction for each category pair independently.
 
@@ -185,10 +174,7 @@ class FieldFactorMachine(Model):
         g1, g2 = self.dzdw(inst)
         diff = self.predict(inst.x) - self.y
 
-        if g1:
-            for i in xrange(len(g1)):
-                idx, val = g1[i]
-                g1[i] = idx, val*diff
+        g1 = [(idx, val*diff) for idx, val in g1] if g1 else None
 
         for v in g2.values():
             v *= diff
@@ -203,7 +189,7 @@ class FieldFactorMachine(Model):
         w2 = self.w2
 
         g2 = defaultdict(lambda: [0.] * K)
-        for x1, x2 in combinations(x, 2):
+        for (), x2 in combinations(x, 2):
             idx1, val1 = x1
             idx2, val2 = x2
             key1, key2 = self.idxtokey(idx1, idx2)
