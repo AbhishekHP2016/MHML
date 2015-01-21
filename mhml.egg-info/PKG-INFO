@@ -1,0 +1,19 @@
+Metadata-Version: 1.1
+Name: mhml
+Version: 0.0.1
+Summary: ML rocks
+Home-page: http://bridgewell.com
+Author: mhyang
+Author-email: mhyang@bridgewell.com
+License: UNKNOWN
+Description: 
+            Enjoy machine learning!
+        
+            :copyright: (c) 2015 by Chi-En Wu <jason2506@somewhere.com.tw>.
+            :license: BSD.
+        
+Platform: UNKNOWN
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Bridgewellers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2.7

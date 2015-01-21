@@ -1,35 +1,30 @@
-# coding: utf-8
-import sys
+# -*- coding: utf-8 -*-
 
 from sklearn.datasets import load_iris
 
-sys.path.append('../')
-
-from learner import OgdLearner
-from model import LR, Param, Inst
-from commonfun import logloss
+from mhml.learner import OnlineGradientDescentLearner
+from mhml.model import LogisticRegression, Param, Inst
+from mhml.util import logloss
 
 
-if __name__ == '__main__':
-
+def test_LR():
     iris = load_iris()
     X = iris.data
-    y = [1.0 if target >= 1. else 0. for target in iris.target ]
+    y = [1.0 if target >= 1. else 0. for target in iris.target]
 
-    learner = OgdLearner(LR(),Param())
+    learner = OnlineGradientDescentLearner(LogisticRegression(), Param())
 
-    itertimes = 0
-    while True:
-        print itertimes
+    for j in xrange(1000):
+        print 'round:\t%d' % j
         cost = 0
         for i in xrange(len(y)):
-            inst = Inst(zip(xrange(len(X[i])),X[i]), y[i])
+            inst = Inst(zip(xrange(len(X[i])), X[i]), y[i])
             p = learner.predict(inst)
             inst_cost = logloss(p, inst.y)
-            print i, p, inst.y, inst_cost
-            cost += learner.model.cost(inst)
+            cost += inst_cost
             learner.update(inst)
-        itertimes += 1
         print 'total cost:', cost
         print 'average cost', cost/len(y)
 
+if __name__ == '__main__':
+    test_LR()
