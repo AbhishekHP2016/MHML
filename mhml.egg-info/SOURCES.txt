@@ -8,5 +8,3 @@ mhml.egg-info/SOURCES.txt
 mhml.egg-info/dependency_links.txt
 mhml.egg-info/requires.txt
 mhml.egg-info/top_level.txt
-test/test_FM.py
-test/test_LR.py

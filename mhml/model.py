@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 '''This file implements the some machine learning models'''
 
@@ -12,18 +12,18 @@ import numpy as np
 from util import sigmoid, logloss
 
 Inst = namedtuple('Inst', ['x', 'y'])
-
+WInst = namedtuple('WInst', ['x', 'y', 'w'])
 
 class Param(object):
 
-    def __init__(self, L1=0., L2=0.01, alpha=0.01, beta=1., D=2**20, K=4, linear=False):
+    def __init__(self, L1=0., L2=0.01, alpha=0.01, beta=1., D=2**20, K=4, linear=True):
         self.L1 = L1
         self.L2 = L2
         self.alpha = alpha
         self.beta = beta
         self.D = D
-        self.linear = linear
         self.K = K
+        self.linear = linear
 
 
 class Model(object):
@@ -46,13 +46,14 @@ class LogisticRegression(Model):
 
     '''This class implements the logistic regression. '''
 
-    def __init__(self):
-        self.w = defaultdict(float)
+    def __init__(self, D):
+        self.w1 = np.zeros(D)
 
     def predict(self, inst):
         x = inst.x
-        w = self.w
-        wTx = sum(w[idx] * val for idx, val in x)
+        w = self.w1
+
+        wTx = sum((w[idx] * val for idx, val in x))
         return sigmoid(wTx)
 
     def cost(self, inst):
@@ -77,19 +78,20 @@ class FactorMachineAbstract(Model):
         K = param.K
 
         self.K = K
-        self.w1 = defaultdict(float) if param.linear else None
-        self.w2 = defaultdict(lambda: np.random.normal(scale=0.05, size=(K,)))
+        self.w1 = np.zeros(param.D) if param.linear else None
+        self.w2 = np.random.normal(scale=0.05, size=(param.D, K))
 
     def predict(self, inst):
         x = inst.x
         w1 = self.w1
         w2 = self.w2
-        idxtokey = self.idxtokey
+        idxtolinearkey = self.idxtolinearkey
+        idxtopairwisekey = self.idxtopairwisekey
 
         # total = (sum(i) wi) * (linearEnabled) + sum(i,j) fiTfj * vi * vj
-        total = sum(w1[idx]*val for idx, val in x) if w1 else 0.
+        total = sum((w1[idxtolinearkey(idx)]*val for idx, val in x)) if w1 is not None else 0.
         for (idx1, val1), (idx2, val2) in combinations(x, 2):
-            key1, key2 = idxtokey(idx1, idx2)
+            key1, key2 = idxtopairwisekey(idx1, idx2)
             total += np.inner(w2[key1], w2[key2]) * val1 * val2
 
         return total
@@ -99,9 +101,10 @@ class FactorMachineAbstract(Model):
 
     def gradient(self, inst):
         g1, g2 = self.dzdw(inst)
-        diff = self.predict(inst) - inst.y
+        w = inst.w if 'w' in dir(inst) else 1.  # inst is an Instance
+        diff = (self.predict(inst) - inst.y) * w
 
-        g1 = [(idx, val*diff) for idx, val in g1] if g1 else None
+        g1 = [(idx, val*diff) for idx, val in g1] if g1 is not None else None
         for v in g2.values():
             v *= diff
 
@@ -112,21 +115,26 @@ class FactorMachineAbstract(Model):
         K = self.K
         w1 = self.w1
         w2 = self.w2
-        idxtokey = self.idxtokey
+        idxtolinearkey = self.idxtolinearkey
+        idxtopairwisekey = self.idxtopairwisekey
 
-        g1 = [(idx, val) for idx, val in x] if w1 else None
+        g1 = [(idxtolinearkey(idx), val) for idx, val in x] if w1 is not None else None
         g2 = defaultdict(lambda: np.zeros((K,)))
 
         for (idx1, val1), (idx2, val2) in combinations(x, 2):
             if val1 and val2:
-                key1, key2 = idxtokey(idx1, idx2)
+                key1, key2 = idxtopairwisekey(idx1, idx2)
                 g2[key1] += val1 * val2 * w2[key2]
                 g2[key2] += val1 * val2 * w2[key1]
 
         return g1, g2
 
     @abstractmethod
-    def idxtokey(idx1, idx2):
+    def idxtopairwisekey(idx1, idx2):
+        pass
+
+    @abstractmethod
+    def idxtolinearkey(idx):
         pass
 
 
@@ -137,7 +145,10 @@ class FactorMachine(FactorMachineAbstract):
     def __init__(self, param):
         super(FactorMachine, self).__init__(param)
 
-    def idxtokey(self, idx1, idx2):
+    def idxtolinearkey(self, idx):
+        return idx
+
+    def idxtopairwisekey(self, idx1, idx2):
         return idx1, idx2
 
 
@@ -154,13 +165,16 @@ class FieldFactorMachine(FactorMachineAbstract):
         self.D = param.D
         super(FieldFactorMachine, self).__init__(param)
 
-    def idxtokey(self, idx1, idx2):
+    def idxtolinearkey(self, idx):
+        D = self.D
+        return abs(hash(str(idx))) % D
+
+    def idxtopairwisekey(self, idx1, idx2):
         D = self.D
         cat1key, cat1val = idx1
         cat2key, cat2val = idx2
         key1 = abs(hash(str(cat1key) + '_' + str(cat2key) + '_' + str(cat1val))) % D
         key2 = abs(hash(str(cat2key) + '_' + str(cat1key) + '_' + str(cat2val))) % D
-
         return key1, key2
 
 
@@ -186,11 +200,12 @@ class GeneralizedLogisticRegression(Model):
     def gradient(self, inst):
 
         model = self.model
-
-        g1, g2 = model.dzdw()
+        g1, g2 = model.dzdw(inst)
         diff = self.predict(inst) - inst.y
 
-        g1 = [(idx, diff*val) for idx, val in g1]
+        if g1:
+            g1 = [(idx, diff*val) for idx, val in g1]
+
         for v in g2.values():
             v *= diff
 
@@ -199,3 +214,9 @@ class GeneralizedLogisticRegression(Model):
     @property
     def K(self):
         return self.model.K
+
+
+def ismodel(model, _class):
+    return (isinstance(model, _class) or
+            (isinstance(model, GeneralizedLogisticRegression) and
+             isinstance(model.model, _class)))
